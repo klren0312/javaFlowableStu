@@ -1,0 +1,60 @@
+server:
+  port: 8088
+  servlet:
+    context-path: /api
+
+spring:
+  application:
+    name: flowable-backend
+  
+  # 数据源配置
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://localhost:3306/flowable_test?useUnicode=true&characterEncoding=utf8&zeroDateTimeBehavior=convertToNull&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
+    username: root
+    password: QWERqwer1234!
+  
+  # Jackson配置
+  jackson:
+    date-format: yyyy-MM-dd HH:mm:ss
+    time-zone: GMT+8
+    default-property-inclusion: non_null
+
+# MyBatis Plus配置
+mybatis-plus:
+  mapper-locations: classpath*:/mapper/**/*.xml
+  type-aliases-package: com.example.flowable.entity
+  global-config:
+    db-config:
+      id-type: auto
+      logic-delete-field: deleted
+      logic-delete-value: 1
+      logic-not-delete-value: 0
+  configuration:
+    map-underscore-to-camel-case: true
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+
+# Flowable配置
+flowable:
+  # 自动部署processes目录下的流程定义
+  check-process-definitions: true
+  # 异步执行器
+  async-executor-activate: true
+  # 历史记录级别
+  history-level: full
+  # 数据库Schema自动更新（false: 不自动创建/更新表结构，避免重复创建）
+  database-schema-update: false
+  # 禁用IDM 引擎（用户身份管理）
+  idm:
+    enabled: false
+  # 流程定义缓存
+  process-definition-cache-limit: 512
+
+# 日志配置
+logging:
+  level:
+    root: info
+    com.example.flowable: debug
+    org.flowable: debug
+  pattern:
+    console: '%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{50} - %msg%n'

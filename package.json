@@ -1,0 +1,9 @@
+{
+	"dependencies": {
+		"@antv/x6": "^3.1.7",
+		"bpmn-font": "^0.12.1",
+		"bpmn-js": "^18.13.1",
+		"tslib": "^2.8.1",
+		"vuedraggable": "^4.1.0"
+	}
+}
