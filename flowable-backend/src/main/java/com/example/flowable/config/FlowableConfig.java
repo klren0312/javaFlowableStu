@@ -24,8 +24,8 @@ public class FlowableConfig {
             engineConfiguration.setDatabaseSchemaUpdate(SpringProcessEngineConfiguration.DB_SCHEMA_UPDATE_FALSE);
             // 设置历史记录级别为完整
             engineConfiguration.setHistoryLevel(HistoryLevel.FULL);
-            // 启用异步执行器
-            engineConfiguration.setAsyncExecutorActivate(true);
+            // 禁用异步执行器，确保任务完成时同步写入历史记录
+            engineConfiguration.setAsyncExecutorActivate(false);
         };
     }
 

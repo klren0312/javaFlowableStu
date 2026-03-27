@@ -135,6 +135,8 @@ const handleUserSwitch = (username) => {
   
   if (switchUser(username)) {
     ElMessage.success(`已切换到用户: ${username}`)
+    // 发送用户切换事件
+    window.dispatchEvent(new CustomEvent('user-switched', { detail: { username } }))
     // 刷新页面以更新所有组件的用户状态
     window.location.reload()
   }

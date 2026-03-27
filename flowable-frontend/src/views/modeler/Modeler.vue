@@ -13,6 +13,10 @@
         <el-icon><Download /></el-icon>
         下载
       </el-button>
+      <el-button @click="handleImportXml">
+        <el-icon><Upload /></el-icon>
+        导入XML
+      </el-button>
       <el-divider direction="vertical" />
       <el-button @click="handleZoomIn">
         <el-icon><ZoomIn /></el-icon>
@@ -163,15 +167,16 @@
                   </el-tag>
                 </template>
               </el-table-column>
-              <el-table-column prop="formKey" label="绑定表单" width="200">
+              <el-table-column prop="formKey" label="绑定表单" min-width="200">
                 <template #default="{ row }">
-                  <el-select v-model="row.formKey" placeholder="选择表单" size="small" style="width: 100%">
+                  <el-select v-model="row.formKey" placeholder="选择表单" size="small" style="width: 100%" @change="(val) => handleFormKeyChange(row, val)">
                     <el-option v-for="form in formList" :key="form.formKey" :label="form.formName" :value="form.formKey" />
                   </el-select>
                 </template>
               </el-table-column>
-              <el-table-column label="操作" width="100">
+              <el-table-column label="操作" width="150">
                 <template #default="{ row }">
+                  <el-button v-if="row.formKey" type="primary" link size="small" @click="handlePreviewForm(row)">预览</el-button>
                   <el-button type="danger" link size="small" @click="handleRemoveBinding(row)">移除</el-button>
                 </template>
               </el-table-column>
@@ -183,6 +188,44 @@
         </div>
       </template>
     </div>
+    
+    <!-- 导入XML对话框 -->
+    <el-dialog v-model="importDialogVisible" title="导入流程XML" width="600px">
+      <el-tabs v-model="importTab">
+        <el-tab-pane label="上传文件" name="file">
+          <el-upload
+            ref="uploadRef"
+            :auto-upload="false"
+            :limit="1"
+            accept=".xml,.bpmn,.bpmn20.xml"
+            :on-change="handleFileChange"
+            drag
+          >
+            <el-icon class="el-icon--upload"><UploadFilled /></el-icon>
+            <div class="el-upload__text">
+              拖拽文件到此处，或<em>点击上传</em>
+            </div>
+            <template #tip>
+              <div class="el-upload__tip">
+                支持 .xml, .bpmn, .bpmn20.xml 格式的BPMN流程文件
+              </div>
+            </template>
+          </el-upload>
+        </el-tab-pane>
+        <el-tab-pane label="粘贴XML" name="paste">
+          <el-input
+            v-model="importXmlContent"
+            type="textarea"
+            :rows="15"
+            placeholder="请将BPMN XML内容粘贴到此处..."
+          />
+        </el-tab-pane>
+      </el-tabs>
+      <template #footer>
+        <el-button @click="importDialogVisible = false">取消</el-button>
+        <el-button type="primary" @click="handleImportSubmit" :loading="importLoading">导入</el-button>
+      </template>
+    </el-dialog>
     
     <!-- 部署对话框 -->
     <el-dialog v-model="deployDialogVisible" title="部署流程" width="400px">
@@ -196,6 +239,58 @@
         <el-button type="primary" @click="handleDeploySubmit">确定</el-button>
       </template>
     </el-dialog>
+    
+    <!-- 表单预览对话框 -->
+    <el-dialog v-model="previewFormDialogVisible" :title="'预览表单: ' + previewFormName" width="600px">
+      <div v-if="previewFormFields.length > 0" class="form-preview">
+        <el-form label-position="top" size="small">
+          <el-form-item v-for="field in previewFormFields" :key="field.id" :label="field.label" :required="field.required">
+            <!-- 文本输入 -->
+            <el-input v-if="field.type === 'text' || field.type === 'input'" :placeholder="'请输入' + field.label" disabled />
+            
+            <!-- 多行文本 -->
+            <el-input v-else-if="field.type === 'textarea'" type="textarea" :rows="3" :placeholder="'请输入' + field.label" disabled />
+            
+            <!-- 数字输入 -->
+            <el-input-number v-else-if="field.type === 'number'" :min="field.min" :max="field.max" disabled />
+            
+            <!-- 日期选择 -->
+            <el-date-picker v-else-if="field.type === 'date'" type="date" :placeholder="'请选择' + field.label" disabled />
+            
+            <!-- 日期时间选择 -->
+            <el-date-picker v-else-if="field.type === 'datetime'" type="datetime" :placeholder="'请选择' + field.label" disabled />
+            
+            <!-- 下拉选择 -->
+            <el-select v-else-if="field.type === 'select'" :placeholder="'请选择' + field.label" disabled>
+              <el-option v-for="opt in field.options" :key="opt.value" :label="opt.label" :value="opt.value" />
+            </el-select>
+            
+            <!-- 单选框 -->
+            <el-radio-group v-else-if="field.type === 'radio'" disabled>
+              <el-radio v-for="opt in field.options" :key="opt.value" :value="opt.value">{{ opt.label }}</el-radio>
+            </el-radio-group>
+            
+            <!-- 复选框 -->
+            <el-checkbox-group v-else-if="field.type === 'checkbox'" disabled>
+              <el-checkbox v-for="opt in field.options" :key="opt.value" :value="opt.value">{{ opt.label }}</el-checkbox>
+            </el-checkbox-group>
+            
+            <!-- 用户选择 -->
+            <el-select v-else-if="field.type === 'user'" :placeholder="'请选择' + field.label" disabled />
+            
+            <!-- 部门选择 -->
+            <el-select v-else-if="field.type === 'department'" :placeholder="'请选择' + field.label" disabled />
+            
+            <!-- 默认文本输入 -->
+            <el-input v-else :placeholder="'请输入' + field.label" disabled />
+          </el-form-item>
+        </el-form>
+      </div>
+      <el-empty v-else description="该表单暂无字段定义" />
+      <template #footer>
+        <el-button @click="previewFormDialogVisible = false">关闭</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -203,9 +298,10 @@
 import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
+import { UploadFilled } from '@element-plus/icons-vue'
 import BpmnModeler from '@/components/BpmnModeler.vue'
 import { parseBpmnXml, getDefaultXml } from '@/utils/bpmnXmlParser'
-import { deployProcessByXml, getProcessDefinitionXml } from '@/api/process'
+import { deployProcessByXml, getProcessDefinitionXml, updateProcessDefinition } from '@/api/process'
 import { getAllUsers } from '@/api/user'
 import { getAllRoles } from '@/api/role'
 import { getFormList, createForm, updateForm, getFormByKey, getProcessFormRelations, bindFormToProcess } from '@/api/form'
@@ -217,6 +313,19 @@ const router = useRouter()
 const flowDesignerRef = ref(null)
 const deployDialogVisible = ref(false)
 const deployForm = reactive({ name: '' })
+
+// 导入XML相关
+const importDialogVisible = ref(false)
+const importTab = ref('file')
+const importXmlContent = ref('')
+const importLoading = ref(false)
+const uploadRef = ref(null)
+let selectedFile = null
+
+// 表单预览相关
+const previewFormDialogVisible = ref(false)
+const previewFormFields = ref([])
+const previewFormName = ref('')
 
 const activeTab = ref('process')
 const formDesignerRef = ref(null)
@@ -522,13 +631,52 @@ const handleLoadForm = async (formKey) => {
       currentForm.formName = res.data.formName
       currentForm.description = res.data.description
       formFields.value = res.data.fields || []
+      ElMessage.success('表单加载成功')
+    } else {
+      ElMessage.warning('未找到该表单，请检查表单标识是否正确')
     }
   } catch (e) {
-    ElMessage.error('加载表单失败')
+    console.error('加载表单失败:', e)
+    ElMessage.error('加载表单失败: ' + (e.message || '未知错误'))
   }
 }
 
 // 绑定相关方法
+const handleFormKeyChange = async (row, val) => {
+  if (val) {
+    try {
+      const res = await getFormByKey(val)
+      if (res.data) {
+        row.formName = res.data.formName
+        ElMessage.success('表单选择成功')
+      }
+    } catch (e) {
+      console.error('获取表单信息失败:', e)
+    }
+  }
+}
+
+const handlePreviewForm = async (row) => {
+  if (!row.formKey) {
+    ElMessage.warning('请先选择表单')
+    return
+  }
+  try {
+    const res = await getFormByKey(row.formKey)
+    if (res.data && res.data.fields) {
+      // 显示表单预览对话框
+      previewFormDialogVisible.value = true
+      previewFormFields.value = res.data.fields || []
+      previewFormName.value = res.data.formName || ''
+    } else {
+      ElMessage.warning('该表单没有字段定义')
+    }
+  } catch (e) {
+    console.error('获取表单内容失败:', e)
+    ElMessage.error('获取表单内容失败')
+  }
+}
+
 const handleRemoveBinding = (row) => {
   row.formKey = ''
 }
@@ -563,6 +711,30 @@ const handleSave = async () => {
       ElMessage.error('获取流程XML失败')
       return
     }
+    
+    // 如果是编辑模式，更新流程定义
+    const processDefinitionId = route.params.processDefinitionId
+    if (processDefinitionId) {
+      await updateProcessDefinition(processDefinitionId, xml)
+      ElMessage.success('保存成功')
+    } else {
+      // 新建模式，提示用户需要先部署
+      ElMessage.warning('新建流程请使用"部署"按钮保存')
+    }
+  } catch (e) {
+    console.error('保存失败:', e)
+    ElMessage.error('保存失败: ' + (e.message || '未知错误'))
+  }
+}
+
+// 下载
+const handleDownload = async () => {
+  try {
+    const xml = await flowDesignerRef.value?.getXml()
+    if (!xml) {
+      ElMessage.error('获取流程XML失败')
+      return
+    }
     const blob = new Blob([xml], { type: 'application/xml' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
@@ -572,8 +744,8 @@ const handleSave = async () => {
     URL.revokeObjectURL(url)
     ElMessage.success('下载成功')
   } catch (e) {
-    console.error('保存失败:', e)
-    ElMessage.error('保存失败')
+    console.error('下载失败:', e)
+    ElMessage.error('下载失败')
   }
 }
 
@@ -600,7 +772,110 @@ const handleDeploySubmit = async () => {
   }
 }
 
-const handleDownload = handleSave
+
+// 导入XML
+const handleImportXml = () => {
+  importDialogVisible.value = true
+  importTab.value = 'file'
+  importXmlContent.value = ''
+  selectedFile = null
+  if (uploadRef.value) {
+    uploadRef.value.clearFiles()
+  }
+}
+
+// 文件选择处理
+const handleFileChange = (file) => {
+  selectedFile = file.raw
+}
+
+// 导入提交
+const handleImportSubmit = async () => {
+  let xmlContent = ''
+  
+  if (importTab.value === 'file') {
+    if (!selectedFile) {
+      ElMessage.warning('请选择要导入的文件')
+      return
+    }
+    
+    try {
+      xmlContent = await readFileContent(selectedFile)
+    } catch (e) {
+      ElMessage.error('读取文件失败')
+      return
+    }
+  } else {
+    if (!importXmlContent.value.trim()) {
+      ElMessage.warning('请输入XML内容')
+      return
+    }
+    xmlContent = importXmlContent.value.trim()
+  }
+  
+  // 验证XML格式
+  if (!isValidBpmnXml(xmlContent)) {
+    ElMessage.error('无效的BPMN XML格式')
+    return
+  }
+  
+  importLoading.value = true
+  try {
+    // 加载XML到流程设计器
+    await flowDesignerRef.value?.loadXml(xmlContent)
+    
+    // 解析XML更新流程信息
+    const data = await parseBpmnXml(xmlContent)
+    if (data.process) {
+      processInfo.id = data.process.id
+      processInfo.name = data.process.name
+    }
+    
+    ElMessage.success('导入成功')
+    importDialogVisible.value = false
+    
+    // 更新绑定列表
+    updateBindingList(data.nodes || [])
+  } catch (e) {
+    console.error('导入失败:', e)
+    ElMessage.error('导入失败: ' + (e.message || '未知错误'))
+  } finally {
+    importLoading.value = false
+  }
+}
+
+// 读取文件内容
+const readFileContent = (file) => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = (e) => resolve(e.target.result)
+    reader.onerror = (e) => reject(e)
+    reader.readAsText(file)
+  })
+}
+
+// 验证BPMN XML格式
+const isValidBpmnXml = (xml) => {
+  try {
+    const parser = new DOMParser()
+    const doc = parser.parseFromString(xml, 'text/xml')
+    const errorNode = doc.querySelector('parsererror')
+    if (errorNode) return false
+    
+    // 检查是否包含BPMN元素
+    const processEl = doc.querySelector('process') ||
+                      doc.getElementsByTagNameNS('http://www.omg.org/spec/BPMN/20100524/MODEL', 'process')[0]
+    if (!processEl) return false
+
+    // 检查是否包含BPMN图表元素（bpmndi:BPMNDiagram）
+    const bpmnDiagram = doc.querySelector('BPMNDiagram') ||
+                        doc.querySelector('[id$="BPMNDiagram"]') ||
+                        doc.getElementsByTagNameNS('http://www.omg.org/spec/BPMN/20100524/DI', 'BPMNDiagram')[0]
+    return !!bpmnDiagram
+  } catch (e) {
+    return false
+  }
+}
 
 // 缩放
 const handleZoomIn = () => {

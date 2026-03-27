@@ -160,7 +160,12 @@ const leaveTypeMap = {
   '4': '调休'
 }
 
-onMounted(() => { fetchData() })
+onMounted(() => { 
+  // 确保用户信息已恢复后再加载数据
+  setTimeout(() => {
+    fetchData()
+  }, 100)
+})
 
 const fetchData = async () => {
   loading.value = true
@@ -200,7 +205,12 @@ const handleCompleteSubmit = async () => {
   await completeTask(completeForm)
   ElMessage.success('任务完成')
   completeDialogVisible.value = false
-  fetchData()
+  // 切换到已办任务tab
+  activeTab.value = 'done'
+  // 添加延迟，等待 Flowable 将任务移动到历史表
+  setTimeout(() => {
+    fetchData()
+  }, 500)
 }
 
 const handleRollback = async (row) => {

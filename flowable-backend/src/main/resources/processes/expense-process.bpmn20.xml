@@ -1,0 +1,102 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL"
+             xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+             xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
+             xmlns:omgdc="http://www.omg.org/spec/DD/20100524/DC"
+             xmlns:omgdi="http://www.omg.org/spec/DD/20100524/DI"
+             xmlns:flowable="http://flowable.org/bpmn"
+             targetNamespace="http://flowable.org/demo">
+
+    <process id="expenseProcess" name="报销审批流程" isExecutable="true">
+
+        <startEvent id="startEvent"/>
+
+        <sequenceFlow id="flow1" sourceRef="startEvent" targetRef="deptApprovalTask"/>
+
+        <userTask id="deptApprovalTask" name="部门审批" flowable:assignee="${deptManager}">
+            <incoming>flow1</incoming>
+        </userTask>
+
+        <sequenceFlow id="flow3" sourceRef="deptApprovalTask" targetRef="amountGateway"/>
+
+        <exclusiveGateway id="amountGateway" name="金额判断"/>
+
+        <sequenceFlow id="flow4" sourceRef="amountGateway" targetRef="endEvent">
+            <conditionExpression xsi:type="tFormalExpression">${approved == false}</conditionExpression>
+        </sequenceFlow>
+
+        <sequenceFlow id="flow5" sourceRef="amountGateway" targetRef="financeApprovalTask">
+            <conditionExpression xsi:type="tFormalExpression">${approved == true &amp;&amp; amount &gt; 1000}</conditionExpression>
+        </sequenceFlow>
+
+        <sequenceFlow id="flow6" sourceRef="amountGateway" targetRef="endEvent">
+            <conditionExpression xsi:type="tFormalExpression">${approved == true &amp;&amp; amount &lt;= 1000}</conditionExpression>
+        </sequenceFlow>
+
+        <userTask id="financeApprovalTask" name="财务审批" flowable:assignee="${financeManager}"/>
+
+        <sequenceFlow id="flow7" sourceRef="financeApprovalTask" targetRef="endEvent"/>
+
+        <endEvent id="endEvent"/>
+
+    </process>
+
+    <bpmndi:BPMNDiagram id="BPMNDiagram_expenseProcess">
+        <bpmndi:BPMNPlane id="BPMNPlane_expenseProcess" bpmnElement="expenseProcess">
+            <bpmndi:BPMNShape id="BPMNShape_startEvent" bpmnElement="startEvent">
+                <omgdc:Bounds x="100" y="150" width="36" height="36"/>
+            </bpmndi:BPMNShape>
+            <bpmndi:BPMNShape id="BPMNShape_deptApprovalTask" bpmnElement="deptApprovalTask">
+                <omgdc:Bounds x="360" y="130" width="100" height="80"/>
+            </bpmndi:BPMNShape>
+            <bpmndi:BPMNShape id="BPMNShape_amountGateway" bpmnElement="amountGateway" isMarkerVisible="true">
+                <omgdc:Bounds x="520" y="115" width="50" height="50"/>
+                <bpmndi:BPMNLabel>
+                    <omgdc:Bounds x="523" y="91" width="44" height="14"/>
+                </bpmndi:BPMNLabel>
+            </bpmndi:BPMNShape>
+            <bpmndi:BPMNShape id="BPMNShape_financeApprovalTask" bpmnElement="financeApprovalTask">
+                <omgdc:Bounds x="880" y="40" width="100" height="80"/>
+            </bpmndi:BPMNShape>
+            <bpmndi:BPMNShape id="BPMNShape_endEvent" bpmnElement="endEvent">
+                <omgdc:Bounds x="812" y="362" width="36" height="36"/>
+            </bpmndi:BPMNShape>
+            <bpmndi:BPMNEdge id="BPMNEdge_flow1" bpmnElement="flow1">
+                <omgdi:waypoint x="136" y="167"/>
+                <omgdi:waypoint x="248" y="167"/>
+                <omgdi:waypoint x="248" y="170"/>
+                <omgdi:waypoint x="360" y="170"/>
+            </bpmndi:BPMNEdge>
+            <bpmndi:BPMNEdge id="BPMNEdge_flow3" bpmnElement="flow3">
+                <omgdi:waypoint x="460" y="170"/>
+                <omgdi:waypoint x="490" y="170"/>
+                <omgdi:waypoint x="490" y="140"/>
+                <omgdi:waypoint x="520" y="140"/>
+            </bpmndi:BPMNEdge>
+            <bpmndi:BPMNEdge id="BPMNEdge_flow4" bpmnElement="flow4">
+                <omgdi:waypoint x="568" y="142"/>
+                <omgdi:waypoint x="700" y="150"/>
+                <omgdi:waypoint x="890" y="240"/>
+                <omgdi:waypoint x="830" y="362"/>
+            </bpmndi:BPMNEdge>
+            <bpmndi:BPMNEdge id="BPMNEdge_flow5" bpmnElement="flow5">
+                <omgdi:waypoint x="550" y="120"/>
+                <omgdi:waypoint x="640" y="120"/>
+                <omgdi:waypoint x="640" y="80"/>
+                <omgdi:waypoint x="880" y="80"/>
+            </bpmndi:BPMNEdge>
+            <bpmndi:BPMNEdge id="BPMNEdge_flow6" bpmnElement="flow6">
+                <omgdi:waypoint x="530" y="150"/>
+                <omgdi:waypoint x="530" y="380"/>
+                <omgdi:waypoint x="812" y="380"/>
+            </bpmndi:BPMNEdge>
+            <bpmndi:BPMNEdge id="BPMNEdge_flow7" bpmnElement="flow7">
+                <omgdi:waypoint x="980" y="80"/>
+                <omgdi:waypoint x="1090" y="80"/>
+                <omgdi:waypoint x="1090" y="380"/>
+                <omgdi:waypoint x="848" y="380"/>
+            </bpmndi:BPMNEdge>
+        </bpmndi:BPMNPlane>
+    </bpmndi:BPMNDiagram>
+
+</definitions>

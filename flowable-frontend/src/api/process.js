@@ -33,6 +33,14 @@ export function getProcessDefinitionXml(processDefinitionId) {
   return request.get('/process/definition/xml', { params: { processDefinitionId } })
 }
 
+// 更新流程定义
+export function updateProcessDefinition(processDefinitionId, xml) {
+  return request.put('/process/definition', xml, { 
+    params: { processDefinitionId },
+    headers: { 'Content-Type': 'text/plain' }
+  })
+}
+
 // 启动流程实例
 export function startProcess(data) {
   return request.post('/process/instance/start', data)
@@ -76,12 +84,4 @@ export function rollbackTask(data) {
 // 获取流程图URL
 export function getProcessDiagramUrl(processInstanceId) {
   return `/api/process/diagram/${processInstanceId}`
-}
-
-// 更新流程定义（重新部署新版本）
-export function updateProcessDefinition(processDefinitionId, xml) {
-  return request.put('/process/definition', xml, {
-    params: { processDefinitionId },
-    headers: { 'Content-Type': 'application/xml' }
-  })
 }

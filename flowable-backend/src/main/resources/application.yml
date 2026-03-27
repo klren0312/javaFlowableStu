@@ -39,7 +39,7 @@ flowable:
   # 自动部署processes目录下的流程定义
   check-process-definitions: true
   # 异步执行器
-  async-executor-activate: true
+  async-executor-activate: false
   # 历史记录级别
   history-level: full
   # 数据库Schema自动更新（false: 不自动创建/更新表结构，避免重复创建）

@@ -209,20 +209,33 @@ const props = defineProps({
 
 const emit = defineEmits(['update:modelValue'])
 
+// 深度比较两个数组是否相等
+const isEqual = (a, b) => {
+  return JSON.stringify(a) === JSON.stringify(b)
+}
+
 // 字段列表
 const fields = ref([])
+let isInternalUpdate = false
 
 // 监听外部值变化
 watch(() => props.modelValue, (val) => {
+  if (isInternalUpdate) return
   if (val && Array.isArray(val)) {
-    fields.value = JSON.parse(JSON.stringify(val))
+    if (!isEqual(val, fields.value)) {
+      isInternalUpdate = true
+      fields.value = JSON.parse(JSON.stringify(val))
+      isInternalUpdate = false
+    }
   }
-}, { immediate: true, deep: true })
+}, { immediate: true })
 
 // 监听内部值变化，同步到外部
 watch(fields, (val) => {
-  emit('update:modelValue', JSON.parse(JSON.stringify(val)))
-}, { deep: true })
+  if (!isInternalUpdate) {
+    emit('update:modelValue', val)
+  }
+})
 
 // 字段编辑相关
 const fieldDialogVisible = ref(false)

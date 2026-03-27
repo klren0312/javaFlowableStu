@@ -700,42 +700,92 @@ public void rollback(String taskId, String targetActivityId, String reason) {
 **步骤一：设计流程（BPMN XML）**
 
 ```xml
-<process id="expenseProcess" name="报销审批流程" isExecutable="true">
-    <!-- 开始 -->
-    <startEvent id="startEvent"/>
-    <sequenceFlow id="flow1" sourceRef="startEvent" targetRef="submitTask"/>
-    
-    <!-- 提交报销 -->
-    <userTask id="submitTask" name="提交报销" flowable:assignee="${applicant}"/>
-    <sequenceFlow id="flow2" sourceRef="submitTask" targetRef="deptApprovalTask"/>
-    
-    <!-- 部门审批 -->
-    <userTask id="deptApprovalTask" name="部门审批" flowable:assignee="${deptManager}"/>
-    <sequenceFlow id="flow3" sourceRef="deptApprovalTask" targetRef="amountGateway"/>
-    
-    <!-- 金额网关 -->
-    <exclusiveGateway id="amountGateway" name="金额判断"/>
-    
-    <!-- 金额<=1000：直接结束 -->
-    <sequenceFlow id="flow4" sourceRef="amountGateway" targetRef="endEvent">
-        <conditionExpression xsi:type="tFormalExpression">${approved == false}</conditionExpression>
-    </sequenceFlow>
-    
-    <!-- 金额>1000：财务审批 -->
-    <sequenceFlow id="flow5" sourceRef="amountGateway" targetRef="financeApprovalTask">
-        <conditionExpression xsi:type="tFormalExpression">${approved == true && amount > 1000}</conditionExpression>
-    </sequenceFlow>
-    
-    <!-- 金额<=1000且通过：直接结束 -->
-    <sequenceFlow id="flow6" sourceRef="amountGateway" targetRef="endEvent">
-        <conditionExpression xsi:type="tFormalExpression">${approved == true && amount <= 1000}</conditionExpression>
-    </sequenceFlow>
-    
-    <userTask id="financeApprovalTask" name="财务审批" flowable:assignee="${financeManager}"/>
-    <sequenceFlow id="flow7" sourceRef="financeApprovalTask" targetRef="endEvent"/>
-    
-    <endEvent id="endEvent"/>
-</process>
+<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL"
+             xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+             xmlns:flowable="http://flowable.org/bpmn"
+             xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
+             xmlns:omgdc="http://www.omg.org/spec/DD/20100524/DC"
+             xmlns:omgdi="http://www.omg.org/spec/DD/20100524/DI"
+             typeLanguage="http://www.w3.org/2001/XMLSchema"
+             expressionLanguage="http://www.w3.org/1999/XPath"
+             targetNamespace="http://flowable.org/demo">
+
+    <process id="expenseProcess" name="报销审批流程" isExecutable="true">
+        <startEvent id="startEvent"/>
+        <sequenceFlow id="flow1" sourceRef="startEvent" targetRef="submitTask"/>
+        <userTask id="submitTask" name="提交报销" flowable:assignee="${applicant}"/>
+        <sequenceFlow id="flow2" sourceRef="submitTask" targetRef="deptApprovalTask"/>
+        <userTask id="deptApprovalTask" name="部门审批" flowable:assignee="${deptManager}"/>
+        <sequenceFlow id="flow3" sourceRef="deptApprovalTask" targetRef="amountGateway"/>
+        <exclusiveGateway id="amountGateway" name="金额判断"/>
+        <sequenceFlow id="flow4" sourceRef="amountGateway" targetRef="endEvent">
+            <conditionExpression xsi:type="tFormalExpression">${approved == false}</conditionExpression>
+        </sequenceFlow>
+        <sequenceFlow id="flow5" sourceRef="amountGateway" targetRef="financeApprovalTask">
+            <conditionExpression xsi:type="tFormalExpression">${approved == true &amp;&amp; amount &gt; 1000}</conditionExpression>
+        </sequenceFlow>
+        <sequenceFlow id="flow6" sourceRef="amountGateway" targetRef="endEvent">
+            <conditionExpression xsi:type="tFormalExpression">${approved == true &amp;&amp; amount &lt;= 1000}</conditionExpression>
+        </sequenceFlow>
+        <userTask id="financeApprovalTask" name="财务审批" flowable:assignee="${financeManager}"/>
+        <sequenceFlow id="flow7" sourceRef="financeApprovalTask" targetRef="endEvent"/>
+        <endEvent id="endEvent"/>
+    </process>
+
+    <!-- 添加这一部分：Diagram 信息 -->
+    <bpmndi:BPMNDiagram id="BPMNDiagram_expenseProcess">
+        <bpmndi:BPMNPlane id="BPMNPlane_expenseProcess" bpmnElement="expenseProcess">
+            <bpmndi:BPMNShape id="BPMNShape_startEvent" bpmnElement="startEvent">
+                <omgdc:Bounds x="100" y="150" width="36" height="36"/>
+            </bpmndi:BPMNShape>
+            <bpmndi:BPMNShape id="BPMNShape_submitTask" bpmnElement="submitTask">
+                <omgdc:Bounds x="200" y="130" width="100" height="80"/>
+            </bpmndi:BPMNShape>
+            <bpmndi:BPMNShape id="BPMNShape_deptApprovalTask" bpmnElement="deptApprovalTask">
+                <omgdc:Bounds x="360" y="130" width="100" height="80"/>
+            </bpmndi:BPMNShape>
+            <bpmndi:BPMNShape id="BPMNShape_amountGateway" bpmnElement="amountGateway">
+                <omgdc:Bounds x="520" y="145" width="50" height="50"/>
+            </bpmndi:BPMNShape>
+            <bpmndi:BPMNShape id="BPMNShape_financeApprovalTask" bpmnElement="financeApprovalTask">
+                <omgdc:Bounds x="630" y="130" width="100" height="80"/>
+            </bpmndi:BPMNShape>
+            <bpmndi:BPMNShape id="BPMNShape_endEvent" bpmnElement="endEvent">
+                <omgdc:Bounds x="630" y="240" width="36" height="36"/>
+            </bpmndi:BPMNShape>
+            <bpmndi:BPMNEdge id="BPMNEdge_flow1" bpmnElement="flow1">
+                <omgdi:waypoint x="136" y="168"/>
+                <omgdi:waypoint x="200" y="170"/>
+            </bpmndi:BPMNEdge>
+            <bpmndi:BPMNEdge id="BPMNEdge_flow2" bpmnElement="flow2">
+                <omgdi:waypoint x="300" y="170"/>
+                <omgdi:waypoint x="360" y="170"/>
+            </bpmndi:BPMNEdge>
+            <bpmndi:BPMNEdge id="BPMNEdge_flow3" bpmnElement="flow3">
+                <omgdi:waypoint x="460" y="170"/>
+                <omgdi:waypoint x="520" y="170"/>
+            </bpmndi:BPMNEdge>
+            <bpmndi:BPMNEdge id="BPMNEdge_flow4" bpmnElement="flow4">
+                <omgdi:waypoint x="545" y="195"/>
+                <omgdi:waypoint x="648" y="240"/>
+            </bpmndi:BPMNEdge>
+            <bpmndi:BPMNEdge id="BPMNEdge_flow5" bpmnElement="flow5">
+                <omgdi:waypoint x="570" y="170"/>
+                <omgdi:waypoint x="630" y="170"/>
+            </bpmndi:BPMNEdge>
+            <bpmndi:BPMNEdge id="BPMNEdge_flow6" bpmnElement="flow6">
+                <omgdi:waypoint x="545" y="195"/>
+                <omgdi:waypoint x="648" y="258"/>
+            </bpmndi:BPMNEdge>
+            <bpmndi:BPMNEdge id="BPMNEdge_flow7" bpmnElement="flow7">
+                <omgdi:waypoint x="680" y="210"/>
+                <omgdi:waypoint x="648" y="258"/>
+            </bpmndi:BPMNEdge>
+        </bpmndi:BPMNPlane>
+    </bpmndi:BPMNDiagram>
+
+</definitions>
 ```
 
 **步骤二：后端Service实现**
