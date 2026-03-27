@@ -1,6 +1,89 @@
 <template>
   <div class="bpmn-modeler">
-    <div class="bpmn-container" ref="modelerContainer"></div>
+    <!-- 工具栏 -->
+    <div class="toolbar">
+      <el-button @click="handleZoomIn" title="放大">
+        <el-icon><ZoomIn /></el-icon>
+      </el-button>
+      <el-button @click="handleZoomOut" title="缩小">
+        <el-icon><ZoomOut /></el-icon>
+      </el-button>
+      <el-button @click="handleZoomFit" title="适应画布">
+        <el-icon><FullScreen /></el-icon>
+      </el-button>
+      <el-divider direction="vertical" />
+      <el-button @click="handleUndo" title="撤销">
+        <el-icon><RefreshLeft /></el-icon>
+      </el-button>
+      <el-button @click="handleRedo" title="重做">
+        <el-icon><RefreshRight /></el-icon>
+      </el-button>
+    </div>
+    
+    <!-- 主体区域 -->
+    <div class="main-content">
+      <div class="bpmn-container" ref="modelerContainer"></div>
+      <div class="properties-panel">
+        <div class="panel-header">
+          <el-icon><Setting /></el-icon>
+          <span>属性面板</span>
+        </div>
+        <div v-if="!selectedElement" class="panel-empty">
+          <el-empty description="请选择一个元素" :image-size="80" />
+        </div>
+        <div v-else class="panel-content">
+          <el-form label-position="top" size="small">
+            <el-collapse v-model="activeCollapse">
+              <el-collapse-item title="基本信息" name="basic">
+                <el-form-item label="元素ID">
+                  <el-input v-model="elementProperties.id" disabled />
+                </el-form-item>
+                <el-form-item label="元素名称">
+                  <el-input v-model="elementProperties.name" @change="updateElementName" />
+                </el-form-item>
+              </el-collapse-item>
+              <el-collapse-item v-if="isUserTask" title="任务分配" name="assignment">
+                <el-form-item label="分配类型">
+                  <el-select v-model="elementProperties.assignType" @change="handleAssignTypeChange" style="width: 100%">
+                    <el-option label="指定人员" value="assignee" />
+                    <el-option label="候选用户" value="candidateUsers" />
+                    <el-option label="候选组" value="candidateGroups" />
+                  </el-select>
+                </el-form-item>
+                <el-form-item v-if="elementProperties.assignType === 'assignee'" label="受理人">
+                  <el-select v-model="elementProperties.assignee" @change="updateAssignee" filterable allow-create default-first-option style="width: 100%" placeholder="请选择受理人或输入流程变量">
+                    <el-option v-for="user in users" :key="user.id" :label="user.realName || user.username" :value="user.username" />
+                  </el-select>
+                </el-form-item>
+                <el-form-item v-if="elementProperties.assignType === 'candidateUsers'" label="候选用户">
+                  <el-select v-model="elementProperties.candidateUsers" @change="updateCandidateUsers" multiple filterable style="width: 100%" placeholder="请选择候选用户">
+                    <el-option v-for="user in users" :key="user.id" :label="user.realName || user.username" :value="user.username" />
+                  </el-select>
+                </el-form-item>
+                <el-form-item v-if="elementProperties.assignType === 'candidateGroups'" label="候选组">
+                  <el-select v-model="elementProperties.candidateGroups" @change="updateCandidateGroups" multiple filterable style="width: 100%" placeholder="请选择候选组">
+                    <el-option v-for="role in roles" :key="role.id" :label="role.name" :value="role.code" />
+                  </el-select>
+                </el-form-item>
+              </el-collapse-item>
+              <el-collapse-item v-if="isProcess" title="流程属性" name="process">
+                <el-form-item label="流程ID">
+                  <el-input v-model="elementProperties.processId" @change="updateProcessId" />
+                </el-form-item>
+                <el-form-item label="流程名称">
+                  <el-input v-model="elementProperties.processName" @change="updateProcessName" />
+                </el-form-item>
+              </el-collapse-item>
+              <el-collapse-item v-if="isSequenceFlow" title="流转条件" name="condition">
+                <el-form-item label="条件表达式">
+                  <el-input v-model="elementProperties.conditionExpression" @change="updateConditionExpression" type="textarea" :rows="3" placeholder="例如: ${days > 3}" />
+                </el-form-item>
+              </el-collapse-item>
+            </el-collapse>
+          </el-form>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -11,27 +94,62 @@
  * - 自定义左侧工具栏（Task 按钮创建 UserTask）
  * - 自定义右键菜单（任务类型替换为 UserTask）
  * - Flowable 扩展属性支持
+ * - 集成右侧属性面板
+ * - 集成顶部工具栏（缩放、撤销/重做）
  */
-import { ref, onMounted, onBeforeUnmount, watch } from 'vue'
+import { ref, reactive, computed, onMounted, onBeforeUnmount, watch } from 'vue'
 import BpmnModeler from 'bpmn-js/lib/Modeler'
 import 'bpmn-js/dist/assets/diagram-js.css'
 import 'bpmn-js/dist/assets/bpmn-js.css'
 import 'bpmn-js/dist/assets/bpmn-font/css/bpmn.css'
 import { getDefaultXml } from '@/utils/bpmnXmlParser'
 import flowableModdle from '@/utils/flowableModdle.json'
+import { Setting, ZoomIn, ZoomOut, FullScreen, RefreshLeft, RefreshRight } from '@element-plus/icons-vue'
 
 // ==================== Props & Emits ====================
 const props = defineProps({
   processId: { type: String, default: 'Process_1' },
   processName: { type: String, default: '新建流程' },
-  xml: { type: String, default: '' }
+  xml: { type: String, default: '' },
+  // 用户列表（用于任务分配）
+  users: { type: Array, default: () => [] },
+  // 角色列表（用于候选组）
+  roles: { type: Array, default: () => [] }
 })
 
-const emit = defineEmits(['update:xml', 'element-selected', 'element-changed', 'import-done', 'error'])
+const emit = defineEmits(['update:xml', 'update:processId', 'update:processName', 'import-done', 'error'])
 
 // ==================== 响应式变量 ====================
 const modelerContainer = ref(null)
 let modeler = null
+
+// 属性面板相关
+const selectedElement = ref(null)
+const activeCollapse = ref(['basic', 'assignment', 'process'])
+
+// 流程信息（内部维护）
+const processInfo = reactive({
+  id: props.processId,
+  name: props.processName
+})
+
+// 元素属性
+const elementProperties = reactive({
+  id: '', 
+  name: '', 
+  assignType: 'assignee', 
+  assignee: '',
+  candidateUsers: [], 
+  candidateGroups: [], 
+  processId: '', 
+  processName: '', 
+  conditionExpression: ''
+})
+
+// 计算属性
+const isUserTask = computed(() => selectedElement.value?.type === 'bpmn:UserTask')
+const isProcess = computed(() => !selectedElement.value || selectedElement.value?.type === 'bpmn:Process' || selectedElement.value?.type === 'bpmn:startEvent')
+const isSequenceFlow = computed(() => selectedElement.value?.type === 'bpmn:SequenceFlow')
 
 // ==================== 常量定义 ====================
 /** 需要显示替换按钮的任务类型 */
@@ -131,13 +249,19 @@ const CustomBpmnModule = {
       const bo = element.businessObject
       const actions = {}
 
-      // 1. 开始事件：可追加结束事件、网关、任务、中间事件
+      // 1. 开始事件：可追加结束事件、网关、任务、中间事件、连线
       if (bo.$type === 'bpmn:StartEvent') {
         Object.assign(actions, {
           'append.end-event': appendAction('bpmn:EndEvent', 'bpmn-icon-end-event-none', 'Append end event'),
           'append.gateway': appendAction('bpmn:ExclusiveGateway', 'bpmn-icon-gateway-none', 'Append gateway'),
           'append.task': appendAction('bpmn:UserTask', 'bpmn-icon-user-task', 'Append user task'),
-          'append.event': appendAction('bpmn:IntermediateThrowEvent', 'bpmn-icon-intermediate-event-none', 'Append event')
+          'append.event': appendAction('bpmn:IntermediateThrowEvent', 'bpmn-icon-intermediate-event-none', 'Append event'),
+          'connect': {
+            group: 'connect',
+            className: 'bpmn-icon-connection-multi',
+            title: translate('Connect'),
+            action: { click: startConnect, dragstart: startConnect }
+          }
         })
       }
 
@@ -183,18 +307,19 @@ const initModeler = () => {
     additionalModules: [CustomBpmnModule]
   })
 
-  // 监听元素选中，通知父组件
+  // 监听元素选中，更新属性面板
   modeler.on('selection.changed', (e) => {
     const element = e.newSelection[0]
     if (element) {
-      emit('element-selected', {
+      selectedElement.value = {
         id: element.id,
         type: element.type,
         name: element.businessObject?.name || '',
         properties: getElementProperties(element)
-      })
+      }
+      updateElementPropertiesPanel(element)
     } else {
-      emit('element-selected', null)
+      selectedElement.value = null
     }
   })
 
@@ -205,6 +330,158 @@ const initModeler = () => {
   // 加载默认流程
   if (!props.xml) {
     loadXml(getDefaultXml(props.processId, props.processName))
+  }
+}
+
+// ==================== 工具栏操作 ====================
+/** 放大 */
+const handleZoomIn = () => {
+  const canvas = modeler.get('canvas')
+  canvas.zoom(canvas.zoom() + 0.1)
+}
+
+/** 缩小 */
+const handleZoomOut = () => {
+  const canvas = modeler.get('canvas')
+  canvas.zoom(canvas.zoom() - 0.1)
+}
+
+/** 适应画布 */
+const handleZoomFit = () => {
+  modeler.get('canvas').zoom('fit-viewport')
+}
+
+/** 撤销 */
+const handleUndo = () => {
+  modeler.get('commandStack').undo()
+}
+
+/** 重做 */
+const handleRedo = () => {
+  modeler.get('commandStack').redo()
+}
+
+// ==================== 属性面板操作 ====================
+/** 更新属性面板显示 */
+const updateElementPropertiesPanel = (element) => {
+  const bo = element.businessObject
+  if (!bo) return
+  
+  elementProperties.id = element.id || ''
+  elementProperties.name = bo.name || ''
+  
+  // 用户任务
+  if (element.type === 'bpmn:UserTask') {
+    const props = getElementProperties(element)
+    if (props.assignee) {
+      elementProperties.assignType = 'assignee'
+      elementProperties.assignee = props.assignee
+    } else if (props.candidateUsers) {
+      elementProperties.assignType = 'candidateUsers'
+      elementProperties.candidateUsers = typeof props.candidateUsers === 'string' 
+        ? props.candidateUsers.split(',').filter(s => s.trim())
+        : props.candidateUsers || []
+    } else if (props.candidateGroups) {
+      elementProperties.assignType = 'candidateGroups'
+      elementProperties.candidateGroups = typeof props.candidateGroups === 'string'
+        ? props.candidateGroups.split(',').filter(s => s.trim())
+        : props.candidateGroups || []
+    } else {
+      elementProperties.assignType = 'assignee'
+      elementProperties.assignee = ''
+    }
+  }
+  
+  // 顺序流条件
+  if (element.type === 'bpmn:SequenceFlow') {
+    elementProperties.conditionExpression = bo.conditionExpression?.body || ''
+  }
+  
+  // 流程级别属性
+  if (element.type === 'bpmn:Process' || !element.type) {
+    elementProperties.processId = processInfo.id
+    elementProperties.processName = processInfo.name
+  }
+}
+
+/** 更新元素名称 */
+const updateElementName = () => {
+  if (!selectedElement.value) return
+  const element = modeler.get('elementRegistry').get(elementProperties.id)
+  if (element) {
+    modeler.get('modeling').updateProperties(element, { name: elementProperties.name })
+  }
+}
+
+/** 处理分配类型变化 */
+const handleAssignTypeChange = () => {
+  elementProperties.assignee = ''
+  elementProperties.candidateUsers = []
+  elementProperties.candidateGroups = []
+}
+
+/** 更新受理人 */
+const updateAssignee = () => {
+  if (!selectedElement.value) return
+  const element = modeler.get('elementRegistry').get(elementProperties.id)
+  if (element) {
+    modeler.get('modeling').updateProperties(element, {
+      'flowable:assignee': elementProperties.assignee || null,
+      'flowable:candidateUsers': null,
+      'flowable:candidateGroups': null
+    })
+  }
+}
+
+/** 更新候选用户 */
+const updateCandidateUsers = () => {
+  if (!selectedElement.value) return
+  const element = modeler.get('elementRegistry').get(elementProperties.id)
+  if (element) {
+    modeler.get('modeling').updateProperties(element, {
+      'flowable:candidateUsers': elementProperties.candidateUsers.join(',') || null,
+      'flowable:assignee': null,
+      'flowable:candidateGroups': null
+    })
+  }
+}
+
+/** 更新候选组 */
+const updateCandidateGroups = () => {
+  if (!selectedElement.value) return
+  const element = modeler.get('elementRegistry').get(elementProperties.id)
+  if (element) {
+    modeler.get('modeling').updateProperties(element, {
+      'flowable:candidateGroups': elementProperties.candidateGroups.join(',') || null,
+      'flowable:assignee': null,
+      'flowable:candidateUsers': null
+    })
+  }
+}
+
+/** 更新流程ID */
+const updateProcessId = () => {
+  processInfo.id = elementProperties.processId
+  emit('update:processId', processInfo.id)
+}
+
+/** 更新流程名称 */
+const updateProcessName = () => {
+  processInfo.name = elementProperties.processName
+  emit('update:processName', processInfo.name)
+}
+
+/** 更新条件表达式 */
+const updateConditionExpression = () => {
+  if (!selectedElement.value) return
+  const element = modeler.get('elementRegistry').get(elementProperties.id)
+  if (element) {
+    const conditionExpression = elementProperties.conditionExpression
+      ? modeler.get('moddle').create('bpmn:FormalExpression', {
+          body: elementProperties.conditionExpression
+        })
+      : null
+    modeler.get('modeling').updateProperties(element, { conditionExpression })
   }
 }
 
@@ -264,7 +541,7 @@ const getElementProperties = (element) => {
   return props
 }
 
-/** 更新元素属性 */
+/** 更新元素属性（外部调用接口） */
 const updateElement = (elementId, properties) => {
   const element = modeler.get('elementRegistry').get(elementId)
   if (!element) return
@@ -297,13 +574,6 @@ const updateElement = (elementId, properties) => {
 
   if (Object.keys(update).length > 0) {
     modeler.get('modeling').updateProperties(element, update)
-    // 通知父组件属性已更新
-    emit('element-selected', {
-      id: element.id,
-      type: element.type,
-      name: element.businessObject?.name || '',
-      properties: getElementProperties(element)
-    })
   }
 }
 
@@ -328,13 +598,17 @@ const selectElement = (elementId) => {
   if (element) modeler.get('selection').select(element)
 }
 
+/** 获取流程信息 */
+const getProcessInfo = () => ({ ...processInfo })
+
 // ==================== 暴露给父组件 ====================
 defineExpose({
   loadXml, getXml, updateElement, deleteElement,
   zoomIn: () => zoom(modeler.get('canvas').zoom() + 0.1),
   zoomOut: () => zoom(modeler.get('canvas').zoom() - 0.1),
   zoomReset: () => zoom(1),
-  zoomFit, getGraphData: getXml, undo, redo, selectElement
+  zoomFit, getGraphData: getXml, undo, redo, selectElement,
+  getProcessInfo
 })
 
 // ==================== 生命周期 ====================
@@ -345,6 +619,14 @@ onBeforeUnmount(() => modeler?.destroy())
 watch(() => props.xml, (newXml) => {
   if (newXml && modeler) loadXml(newXml)
 })
+
+// 监听外部 processId/processName 变化
+watch(() => props.processId, (newVal) => {
+  processInfo.id = newVal
+})
+watch(() => props.processName, (newVal) => {
+  processInfo.name = newVal
+})
 </script>
 
 <style scoped>
@@ -352,12 +634,89 @@ watch(() => props.xml, (newXml) => {
   width: 100%;
   height: 100%;
   display: flex;
+  flex-direction: column;
+}
+
+.toolbar {
+  padding: 8px 12px;
+  border-bottom: 1px solid #eee;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: #fff;
+}
+
+.toolbar .el-button {
+  padding: 6px 10px;
+}
+
+.main-content {
+  flex: 1;
+  display: flex;
+  overflow: hidden;
 }
 
 .bpmn-container {
   flex: 1;
   height: 100%;
   background: #fff;
+}
+
+.properties-panel {
+  width: 320px;
+  border-left: 1px solid #eee;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+}
+
+.panel-header {
+  padding: 12px 16px;
+  background: #f5f7fa;
+  border-bottom: 1px solid #eee;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 500;
+  color: #303133;
+}
+
+.panel-empty {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.panel-content {
+  padding: 12px;
+}
+
+.panel-content :deep(.el-collapse) {
+  border: none;
+}
+
+.panel-content :deep(.el-collapse-item__header) {
+  background: #f5f7fa;
+  padding: 0 12px;
+  font-weight: 500;
+  border-radius: 4px;
+  margin-bottom: 8px;
+}
+
+.panel-content :deep(.el-collapse-item__content) {
+  padding: 12px 0;
+}
+
+.panel-content :deep(.el-form-item) {
+  margin-bottom: 16px;
+}
+
+.panel-content :deep(.el-form-item__label) {
+  font-size: 13px;
+  color: #606266;
+  padding-bottom: 4px;
 }
 
 :deep(.bjs-container) { height: 100%; }
