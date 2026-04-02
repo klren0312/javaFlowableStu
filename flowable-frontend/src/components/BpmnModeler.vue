@@ -97,7 +97,7 @@
  * - 集成右侧属性面板
  * - 集成顶部工具栏（缩放、撤销/重做）
  */
-import { ref, reactive, computed, onMounted, onBeforeUnmount, watch } from 'vue'
+import { ref, reactive, computed, onMounted, onBeforeUnmount, watch, nextTick } from 'vue'
 import BpmnModeler from 'bpmn-js/lib/Modeler'
 import 'bpmn-js/dist/assets/diagram-js.css'
 import 'bpmn-js/dist/assets/bpmn-js.css'
@@ -126,6 +126,9 @@ let modeler = null
 // 属性面板相关
 const selectedElement = ref(null)
 const activeCollapse = ref(['basic', 'assignment', 'process'])
+
+// 防止属性更新时触发选择变化
+let isUpdatingProperties = false
 
 // 流程信息（内部维护）
 const processInfo = reactive({
@@ -309,6 +312,11 @@ const initModeler = () => {
 
   // 监听元素选中，更新属性面板
   modeler.on('selection.changed', (e) => {
+    // 如果正在更新属性，忽略选择变化事件
+    if (isUpdatingProperties) {
+      return
+    }
+    
     const element = e.newSelection[0]
     if (element) {
       selectedElement.value = {
@@ -323,9 +331,81 @@ const initModeler = () => {
     }
   })
 
+  // 监听元素创建，限制开始和结束节点只能存在一个
+  modeler.on('shape.added', (e) => {
+    const element = e.element
+    const elementRegistry = modeler.get('elementRegistry')
+    const modeling = modeler.get('modeling')
+    
+    // 检查是否是开始事件
+    if (element.type === 'bpmn:StartEvent') {
+      // 查找所有开始事件
+      const startEvents = elementRegistry.filter(el => el.type === 'bpmn:StartEvent' && el.id !== element.id)
+      if (startEvents.length > 0) {
+        // 已经存在开始事件，删除新创建的
+        setTimeout(() => {
+          modeling.removeShape(element)
+          emit('error', '只能存在一个开始事件')
+        }, 0)
+        return
+      }
+    }
+    
+    // 检查是否是结束事件
+    if (element.type === 'bpmn:EndEvent') {
+      // 查找所有结束事件
+      const endEvents = elementRegistry.filter(el => el.type === 'bpmn:EndEvent' && el.id !== element.id)
+      if (endEvents.length > 0) {
+        // 已经存在结束事件，删除新创建的
+        setTimeout(() => {
+          modeling.removeShape(element)
+          emit('error', '只能存在一个结束事件')
+        }, 0)
+        return
+      }
+    }
+  })
+
+  // 监听命令栈变化，检查并限制开始和结束节点数量
+  modeler.on('commandStack.changed', (e) => {
+    const elementRegistry = modeler.get('elementRegistry')
+    const modeling = modeler.get('modeling')
+    
+    // 检查是否是创建元素的命令（而不是移动、删除等操作）
+    const commandStack = modeler.get('commandStack')
+    const currentCommand = commandStack._currentCommand
+    
+    // 只在创建元素时检查，避免移动节点时误删
+    if (currentCommand && currentCommand.handler && 
+        (currentCommand.handler.type === 'shape.create' || 
+         currentCommand.handler.type === 'element.create')) {
+      
+      // 检查开始事件数量
+      const startEvents = elementRegistry.filter(el => el.type === 'bpmn:StartEvent')
+      if (startEvents.length > 1) {
+        // 删除多余的开始事件，只保留第一个
+        for (let i = 1; i < startEvents.length; i++) {
+          modeling.removeShape(startEvents[i])
+        }
+        emit('error', '只能存在一个开始事件')
+      }
+      
+      // 检查结束事件数量
+      const endEvents = elementRegistry.filter(el => el.type === 'bpmn:EndEvent')
+      if (endEvents.length > 1) {
+        // 删除多余的结束事件，只保留第一个
+        for (let i = 1; i < endEvents.length; i++) {
+          modeling.removeShape(endEvents[i])
+        }
+        emit('error', '只能存在一个结束事件')
+      }
+    }
+    
+    emitXml()
+  })
+
   // 监听元素变化，导出 XML
   modeler.on('element.changed', () => emitXml())
-  modeler.on('commandStack.changed', () => emitXml())
 
   // 加载默认流程
   if (!props.xml) {
@@ -451,11 +531,19 @@ const updateCandidateGroups = () => {
   if (!selectedElement.value) return
   const element = modeler.get('elementRegistry').get(elementProperties.id)
   if (element) {
+    // 设置标志，防止选择变化事件清空属性面板
+    isUpdatingProperties = true
+    
     modeler.get('modeling').updateProperties(element, {
       'flowable:candidateGroups': elementProperties.candidateGroups.join(',') || null,
       'flowable:assignee': null,
       'flowable:candidateUsers': null
     })
+    
+    // 延迟重置标志，确保所有事件都处理完毕
+    setTimeout(() => {
+      isUpdatingProperties = false
+    }, 100)
   }
 }
 

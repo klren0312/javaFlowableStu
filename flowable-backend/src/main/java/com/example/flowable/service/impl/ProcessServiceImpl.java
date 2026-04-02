@@ -169,6 +169,16 @@ public class ProcessServiceImpl implements ProcessService {
                     }
                     variables.put("hrManager", hrManager);
                 }
+                
+                // 自动注入财务经理
+                if (!variables.containsKey("financeManager")) {
+                    String financeManager = sysUserService.getFinanceManagerUsername();
+                    // 如果找不到财务经理，使用默认值
+                    if (financeManager == null) {
+                        financeManager = "wangwu"; // 默认财务经理
+                    }
+                    variables.put("financeManager", financeManager);
+                }
             } else {
                 // 申请人不存在，使用默认值
                 if (!variables.containsKey("deptManager")) {
@@ -176,6 +186,9 @@ public class ProcessServiceImpl implements ProcessService {
                 }
                 if (!variables.containsKey("hrManager")) {
                     variables.put("hrManager", "qianqi");
+                }
+                if (!variables.containsKey("financeManager")) {
+                    variables.put("financeManager", "wangwu");
                 }
             }
         } else {
@@ -185,6 +198,9 @@ public class ProcessServiceImpl implements ProcessService {
             }
             if (!variables.containsKey("hrManager")) {
                 variables.put("hrManager", "qianqi");
+            }
+            if (!variables.containsKey("financeManager")) {
+                variables.put("financeManager", "wangwu");
             }
         }
         

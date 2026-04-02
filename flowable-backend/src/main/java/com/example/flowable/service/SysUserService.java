@@ -44,4 +44,10 @@ public interface SysUserService extends IService<SysUser> {
      * @return 人事审批人员用户名，如果不存在返回null
      */
     String getHrManagerUsername();
+
+    /**
+     * 获取财务审批人员用户名
+     * @return 财务审批人员用户名，如果不存在返回null
+     */
+    String getFinanceManagerUsername();
 }

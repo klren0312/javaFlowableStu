@@ -170,4 +170,28 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
         SysUser hrManager = this.getById(userId);
         return hrManager != null ? hrManager.getUsername() : null;
     }
+
+    @Override
+    public String getFinanceManagerUsername() {
+        // 查询财务审批角色
+        SysRole financeRole = roleMapper.selectOne(
+                new LambdaQueryWrapper<SysRole>().eq(SysRole::getCode, "FINANCE_APPROVER")
+        );
+        if (financeRole == null) {
+            return null;
+        }
+        
+        // 查询拥有财务审批角色的用户
+        List<SysUserRole> userRoles = userRoleMapper.selectList(
+                new LambdaQueryWrapper<SysUserRole>().eq(SysUserRole::getRoleId, financeRole.getId())
+        );
+        if (userRoles.isEmpty()) {
+            return null;
+        }
+        
+        // 返回第一个财务审批人员
+        Long userId = userRoles.get(0).getUserId();
+        SysUser financeManager = this.getById(userId);
+        return financeManager != null ? financeManager.getUsername() : null;
+    }
 }

@@ -17,6 +17,10 @@
         <el-icon><Upload /></el-icon>
         导入XML
       </el-button>
+      <el-button @click="handleViewXml">
+        <el-icon><View /></el-icon>
+        查看XML
+      </el-button>
       <el-divider direction="vertical" />
       <el-radio-group v-model="activeTab" size="small">
         <el-radio-button value="process">流程设计</el-radio-button>
@@ -38,6 +42,7 @@
           @update:process-id="handleProcessIdUpdate"
           @update:process-name="handleProcessNameUpdate"
           @import-done="handleImportDone"
+          @error="handleModelError"
         />
       </template>
       
@@ -167,6 +172,23 @@
       </template>
     </el-dialog>
     
+    <!-- 查看XML对话框 -->
+    <el-dialog v-model="viewXmlDialogVisible" title="查看流程XML" width="800px">
+      <div class="xml-viewer-toolbar">
+        <el-button type="primary" size="small" @click="handleCopyXml">
+          <el-icon><CopyDocument /></el-icon>
+          复制XML
+        </el-button>
+      </div>
+      <el-input 
+        v-model="currentProcessXml" 
+        type="textarea" 
+        :rows="25" 
+        readonly 
+        class="xml-textarea"
+      />
+    </el-dialog>
+    
     <!-- 表单预览对话框 -->
     <el-dialog v-model="previewFormDialogVisible" :title="'预览表单: ' + previewFormName" width="600px">
       <div v-if="previewFormFields.length > 0" class="form-preview">
@@ -225,7 +247,7 @@
 import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { UploadFilled } from '@element-plus/icons-vue'
+import { UploadFilled, CopyDocument } from '@element-plus/icons-vue'
 import BpmnModeler from '@/components/BpmnModeler.vue'
 import { parseBpmnXml, getDefaultXml } from '@/utils/bpmnXmlParser'
 import { deployProcessByXml, getProcessDefinitionXml, updateProcessDefinition } from '@/api/process'
@@ -253,6 +275,10 @@ let selectedFile = null
 const previewFormDialogVisible = ref(false)
 const previewFormFields = ref([])
 const previewFormName = ref('')
+
+// 查看XML相关
+const viewXmlDialogVisible = ref(false)
+const currentProcessXml = ref('')
 
 const activeTab = ref('process')
 const formDesignerRef = ref(null)
@@ -354,6 +380,11 @@ const handleProcessNameUpdate = (name) => {
 // 导入完成
 const handleImportDone = () => {
   updateBindingList()
+}
+
+// 处理模型错误
+const handleModelError = (errorMsg) => {
+  ElMessage.error(errorMsg)
 }
 
 // 更新绑定列表
@@ -588,6 +619,40 @@ const handleDeploySubmit = async () => {
   }
 }
 
+
+// 查看XML
+const handleViewXml = async () => {
+  try {
+    const xml = await flowDesignerRef.value?.getXml()
+    if (!xml) {
+      ElMessage.error('获取流程XML失败')
+      return
+    }
+    currentProcessXml.value = xml
+    viewXmlDialogVisible.value = true
+  } catch (e) {
+    console.error('获取XML失败:', e)
+    ElMessage.error('获取流程XML失败')
+  }
+}
+
+// 复制XML
+const handleCopyXml = async () => {
+  try {
+    await navigator.clipboard.writeText(currentProcessXml.value)
+    ElMessage.success('XML已复制到剪贴板')
+  } catch (e) {
+    console.error('复制失败:', e)
+    // 降级方案：使用传统方法复制
+    const textarea = document.createElement('textarea')
+    textarea.value = currentProcessXml.value
+    document.body.appendChild(textarea)
+    textarea.select()
+    document.execCommand('copy')
+    document.body.removeChild(textarea)
+    ElMessage.success('XML已复制到剪贴板')
+  }
+}
 
 // 导入XML
 const handleImportXml = () => {

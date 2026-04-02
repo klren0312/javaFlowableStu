@@ -95,7 +95,8 @@ INSERT INTO sys_role (id, name, code, description, status) VALUES
 (1, '管理员', 'ADMIN', '系统管理员，拥有所有权限', 1),
 (2, '部门经理', 'DEPT_MANAGER', '部门经理，可审批部门内流程', 1),
 (3, '普通员工', 'EMPLOYEE', '普通员工，可发起流程', 1),
-(4, '人事', 'HR', '人事，可审批人事相关流程', 1);
+(4, '人事', 'HR_APPROVER', '人事，可审批人事相关流程', 1),
+(5, '财务', 'FINANCE_APPROVER', '财务，可审批财务相关流程', 1);
 
 -- 插入用户（密码都是 123456，使用BCrypt加密）
 INSERT INTO sys_user (id, username, password, real_name, email, phone, department_id, status) VALUES
@@ -109,7 +110,8 @@ INSERT INTO sys_user_role (user_id, role_id) VALUES
 (1, 1),
 (2, 2),
 (3, 4),
-(4, 2);
+(4, 2),
+(4, 5);
 
 -- =============================================
 -- 完成提示
